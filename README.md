@@ -16,6 +16,7 @@ $ pip install unidecode
 $ pip install mysql-connector==2.1.4
 $ pip install pyopenssl --upgrade
 $ pip install scrapy
+$ pip install selenium
 
 
 Use:

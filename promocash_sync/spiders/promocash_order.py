@@ -76,7 +76,7 @@ cursor_Laurux.execute("""SELECT * FROM Laurux01.Fiches_Art where
 cbarre_notfound = []
 
 #change to True for testing
-if (False):
+if (True):
 	cbarre_list = ["3560070756100","5410228230441"]
 else:
 	cbarre_list = []
@@ -130,59 +130,6 @@ def show_field(value):
 	return value
 
 class Article(scrapy.Item):
-	cbarre = scrapy.Field(
-		input_processor=MapCompose(remove_tags, strip_string, unicode_to_ascii, strip_non_numeric),
-		output_processor=TakeFirst(),
-	)
-	code = scrapy.Field(
-		input_processor=MapCompose(remove_tags, strip_string, unicode_to_ascii, strip_non_numeric),
-		output_processor=TakeFirst(),
-	)
-	name = scrapy.Field(
-		input_processor=MapCompose(remove_tags, strip_string, unicode_to_ascii),
-		output_processor=Join(''),
-	)
-	prixht = scrapy.Field(
-		input_processor=MapCompose(remove_tags, strip_string, unicode_to_ascii, strip_non_numeric),
-		output_processor=Join(''),
-	)
-	prixht_promo = scrapy.Field(
-		input_processor=MapCompose(remove_tags, strip_string, unicode_to_ascii, strip_non_numeric),
-		output_processor=Join(''),
-	)
-	prixht_promo_act = scrapy.Field(
-		input_processor=MapCompose(remove_tags, strip_string, unicode_to_ascii, strip_non_numeric),
-		output_processor=Join(''),
-	)
-	prixht_cond = scrapy.Field(
-		input_processor=MapCompose(remove_tags, strip_string, unicode_to_ascii, strip_non_numeric, filter_float),
-		output_processor=TakeFirst(),
-	)
-	taxe_css = scrapy.Field(
-		input_processor=MapCompose(remove_tags, strip_string, unicode_to_ascii, is_css, strip_non_numeric, filter_float),
-		output_processor=TakeFirst(),
-	)
-	tva = scrapy.Field(
-		input_processor=MapCompose(remove_tags, strip_string, unicode_to_ascii, strip_non_numeric ,strip_tva),
-		output_processor=TakeFirst(),
-	)
-	marque = scrapy.Field(
-		input_processor=MapCompose(remove_tags, strip_string, unicode_to_ascii),
-		output_processor=TakeFirst(),
-	)
-	cond = scrapy.Field(
-		input_processor=MapCompose(remove_tags, strip_string, unicode_to_ascii, strip_non_numeric, filter_float),
-		output_processor=TakeFirst(),
-	)
-	unite_achat = scrapy.Field(
-		input_processor=MapCompose(remove_tags, strip_string, unicode_to_ascii, check_unite_achat, strip_non_numeric, filter_float),
-		output_processor=TakeFirst(),
-	)
-	image = scrapy.Field(
-		input_processor=MapCompose(remove_tags, strip_string),
-		output_processor=TakeFirst(),
-	)
-	last_updated = scrapy.Field(serializer=str)
 	
 	def show(self):
 		print "***********************"
@@ -299,39 +246,17 @@ class PromocashArticleSpider(CrawlSpider):
 	def parse_item(self, response):
 		self.logger.warning("Parse Item " + response.meta['cbarre'])
 		time.sleep(0.5)
-		#open_in_browser(response)
-		try:
-			url_detail = response.xpath('//div[@class="pdt-libelle"]/a/@href').extract()
-			url_detail = u'https://grenoble.promocash.com' + url_detail[0]
-		except:
-			cbarre_notfound.append(response.meta['cbarre'])
-			return None
-		#print "url_detail: " + url_detail
-		request = scrapy.Request(url_detail, callback=self.parse_detail)
-		request.meta['cbarre'] = response.meta['cbarre']
-		request.meta['name'] = response.xpath('//div[@class="pdt-libelle"]/a/text()').extract()
-		return request
+		open_in_browser(response)
+		#request = scrapy.FormRequest.from_response(response,
+		#		formxpath=
+		#		formdata={'searchString': cbarre},
+		#		callback=self.parse_item)
+		#request.meta['cbarre'] = response.meta['cbarre']
+		#return request
 		
-	def parse_detail(self, response):
+	def order_article(self, response):
 		time.sleep(0.5)
-		#open_in_browser(response)
-		l = ItemLoader(item=Article(), response=response)
-		l.add_value('cbarre', response.meta['cbarre'])
-		l.add_xpath('code','//div[@class="pdt-ifls"]/text()')
-		l.add_value('name', response.meta['name'])
-		l.add_xpath('cond','//div[@class="pdt-cond"]/text()')
-		l.add_xpath('unite_achat','//div[@class="pdt-cond"]/text()')
-		l.add_xpath('marque','//div[@class="pdt-marque"]/text()')
-		l.add_xpath('prixht','//div[@class="prix"]/span/span[@*]/text()')
-		l.add_xpath('prixht_promo','//div[@class="blocPrix"]/del/text()')
-		l.add_xpath('prixht_promo_act','//div[@class="blocPrix"]/ins/span/span[@*]/text()')
-		l.add_xpath('prixht_cond','//div[@class="pdt-pxUnit"]/text()')
-		l.add_xpath('taxe_css','//div[@class="pdt-secu"]/text()')
-		l.add_xpath('tva','//div[@class="tva"]/span/text()')
-		l.add_xpath('image','//div[@class="imgContainer"]/img[@id="produitIMG"]/@src')
-		l.load_item()
-		l.item.insert()
-		l.item.show()
+		open_in_browser(response)
 		
 	def spider_closed(self, spider):
 		self.logger.info('Promocash spider closed: %s', spider.name)
