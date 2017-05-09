@@ -3,13 +3,15 @@ import scrapy
 import time
 import datetime
 import sys
+import os
 from unidecode import unidecode
 from scrapy.http import FormRequest
 from scrapy.http import Request
+from scrapy.selector import Selector
+from scrapy.http import HtmlResponse
 from scrapy.linkextractors import LinkExtractor
 from scrapy.spiders import CrawlSpider, Rule
 from scrapy.utils.response import open_in_browser
-from scrapy.linkextractors.sgml import SgmlLinkExtractor
 from scrapy.loader import ItemLoader
 from scrapy.loader.processors import Join, MapCompose, TakeFirst
 from w3lib.html import remove_tags
@@ -18,14 +20,14 @@ import mysql.connector
 from scrapy import signals
 
 
-with open('/home/jeanne/promocash/promologin.txt') as f:
+with open(os.environ['HOME'] + '/promocash/promologin.txt') as f:
   credentials = [x.strip().split(':') for x in f.readlines()]
   
 for username,password in credentials:
 	promo_user = username
 	promo_pass = password
 
-with open('/home/jeanne/promocash/dblogin.txt') as f:
+with open(os.environ['HOME'] + '/promocash/dblogin.txt') as f:
   credentials = [x.strip().split(':') for x in f.readlines()]
   
 for username,password in credentials:
@@ -71,9 +73,14 @@ cursor_Laurux.execute("""SELECT * FROM Laurux01.Fiches_Art where
 			""")
 
 cbarre_notfound = []
-cbarre_list = []
-for row in cursor_Laurux:
-	cbarre_list.append(row.art_code)
+
+#change to True for testing
+if (False):
+	cbarre_list = ["3560070756100"]
+else:
+	cbarre_list = []
+	for row in cursor_Laurux:
+		cbarre_list.append(row.art_code)
 
 print "*********************"
 print cbarre_list
@@ -83,6 +90,7 @@ print "*********************"
 #sys.exit(0)
 
 def filter_price(value):
+	value = re.sub(',','.',value)
 	try:
 		f = float(value)
 		return f
@@ -98,7 +106,7 @@ def strip_string(value):
 	return re.sub('\s+',' ',value).strip()
 
 def strip_non_numeric(value):
-	non_decimal = re.compile(r'[^\d.]+')
+	non_decimal = re.compile(r'[^\d.,]+')
 	return non_decimal.sub('', value)
 
 def is_css(value):
@@ -109,6 +117,10 @@ def is_css(value):
 
 def unicode_to_ascii(value):
 	return unidecode(value)
+
+def show_field(value):
+	print "Field: " + value
+	return value
 
 class Article(scrapy.Item):
 	cbarre = scrapy.Field(
@@ -121,7 +133,7 @@ class Article(scrapy.Item):
 	)
 	name = scrapy.Field(
 		input_processor=MapCompose(remove_tags, strip_string, unicode_to_ascii),
-		output_processor=TakeFirst(),
+		output_processor=Join(''),
 	)
 	prixht = scrapy.Field(
 		input_processor=MapCompose(remove_tags, strip_string, unicode_to_ascii, strip_non_numeric),
@@ -182,9 +194,11 @@ class Article(scrapy.Item):
 			if (not ('prixht_promo_act' in elem)):
 				elem['prixht_promo_act'] = elem['prixht']
 		if (not ('image' in elem)):
-			 elem['image'] = ""
+			elem['image'] = ""
+		if (('prixht_cond' in elem) and (float(elem['cond']) != "{:.3f}".format(float(elem['prixht']) / float(elem['prixht_cond'])))):
+			elem['cond'] = "{:.3f}".format(float(elem['prixht']) / float(elem['prixht_cond']))		
 		if (not ('prixht_unite' in elem)):
-			 elem['prixht_unite'] = "{:.2f}".format(float(elem['prixht']) / float(elem['cond']))
+			elem['prixht_unite'] = "{:.2f}".format(float(elem['prixht']) / float(elem['cond']))
 		today = datetime.datetime.today()
 		elem['last_update'] = today.strftime("%Y-%m-%d %H:%M:%S")
 		cursor.execute("""INSERT INTO Articles (cbarre, code, name, prixht, prixht_promo, prixht_promo_act, prixht_unite, prixht_cond, taxe_css, tva, marque, cond, image, last_update) 
@@ -213,11 +227,12 @@ class Article(scrapy.Item):
 class PromocashArticleSpider(CrawlSpider):
 	name = 'promocash_article'
 	allowed_domains = ['grenoble.promocash.com']
-	start_urls = ['https://grenoble.promocash.com/authentification.php?popup=1']
+	start_urls = ['https://grenoble.promocash.com/authentification.php']
 
 	rules = (
-		Rule(SgmlLinkExtractor(allow=('authentification')), callback='parse_start_url', follow=True),
-		Rule(SgmlLinkExtractor(allow=('\\?page=\\d')), callback='parse_item', follow=True),
+	    Rule(LinkExtractor(allow=('https://grenoble.promocash.com/authentification.php')), callback='parse_start_url', follow=False),
+	    Rule(LinkExtractor(allow=('produitListe.php')), callback='parse_item', follow=True),
+		#Rule(SgmlLinkExtractor(allow=('\\?page=\\d')), callback='parse_item', follow=True),
 	)
 	
 	@classmethod
@@ -227,19 +242,27 @@ class PromocashArticleSpider(CrawlSpider):
 		return spider
 	
 	def parse_start_url(self, response):
-		return [FormRequest.from_response(response,
-			formdata={'CLI_NUMERO': promo_user},
-			dont_click=True,
-			callback=self.after_user)]
-	
-	def after_user(self, response):
-		time.sleep(0.2)
-		return [FormRequest.from_response(response,
+		self.logger.warning("Starting Connection with User : " + promo_user)
+		return [FormRequest.from_response(response,formnumber=1,
 			formdata={'CLI_NUMERO': promo_user,'CLI_PASSWORD': promo_pass},
+			clickdata={'name':'logClient'},
 			callback=self.after_login)]
 	
+	#def after_user(self, response):
+	#	time.sleep(1)
+	#	open_in_browser(response)
+	#	self.logger.warning("Enter Password " + promo_user)
+	#	req = FormRequest.from_response(response,formnumber=1,
+	#		formdata={'CLI_NUMERO': promo_user,'CLI_PASSWORD': promo_pass},
+	#		clickdata={'name':'logClient'},
+	#		callback=self.after_login)
+	#	puts req
+	#	yield req
+	
 	def after_login(self, response):
+		self.logger.warning("Check logging")
 		time.sleep(0.2)
+		#open_in_browser(response)
 		if "Merci de vérifier notre numéro de carte" in response.body:
 			self.logger.warning("logging Failed")
 			return
@@ -249,6 +272,7 @@ class PromocashArticleSpider(CrawlSpider):
 				callback=self.start_page)
 	
 	def start_page(self, response):
+		time.sleep(1)
 		self.logger.warning("Start Page")
 		for cbarre in cbarre_list:
 			request = scrapy.FormRequest.from_response(response,
@@ -258,34 +282,37 @@ class PromocashArticleSpider(CrawlSpider):
 			yield request
 	
 	def parse_item(self, response):
+		self.logger.warning("Parse Item " + response.meta['cbarre'])
+		time.sleep(0.5)
 		#open_in_browser(response)
 		try:
-			url_detail = response.xpath('//p[@class="pdt-libelle"]/a/@href').extract()
-			url_detail = u'https://grenoble.promocash.com/' + url_detail[0]
+			url_detail = response.xpath('//div[@class="pdt-libelle"]/a/@href').extract()
+			url_detail = u'https://grenoble.promocash.com' + url_detail[0]
 		except:
 			cbarre_notfound.append(response.meta['cbarre'])
 			return None
-		#print url_detail
+		#print "url_detail: " + url_detail
 		request = scrapy.Request(url_detail, callback=self.parse_detail)
 		request.meta['cbarre'] = response.meta['cbarre']
+		request.meta['name'] = response.xpath('//div[@class="pdt-libelle"]/a/text()').extract()
 		return request
 		
 	def parse_detail(self, response):
+		time.sleep(0.5)
 		#open_in_browser(response)
-		time.sleep(1)
 		l = ItemLoader(item=Article(), response=response)
 		l.add_value('cbarre', response.meta['cbarre'])
-		l.add_xpath('code','//p[@class="pdt-ifls"]/text()')
-		l.add_xpath('name','//div[@class="grp-titre"]/h2/text()')
-		l.add_xpath('cond','//p[@class="pdt-cond"]/text()')
-		l.add_xpath('marque','//p[@class="pdt-mar"]/text()')
-		l.add_xpath('prixht','//p[@class="prix"]/span/span[@*]/text()')
+		l.add_xpath('code','//div[@class="pdt-ifls"]/text()')
+		l.add_value('name', response.meta['name'])
+		l.add_xpath('cond','//div[@class="pdt-cond"]/text()')
+		l.add_xpath('marque','//div[@class="pdt-marque"]/text()')
+		l.add_xpath('prixht','//div[@class="prix"]/span/span[@*]/text()')
 		l.add_xpath('prixht_promo','//div[@class="blocPrix"]/del/text()')
 		l.add_xpath('prixht_promo_act','//div[@class="blocPrix"]/ins/span/span[@*]/text()')
-		l.add_xpath('prixht_cond','//p[@class="pdt-pxUnit"]/text()')
-		l.add_xpath('taxe_css','//div[@class="grp-info"]/p[3]/text()')
+		l.add_xpath('prixht_cond','//div[@class="pdt-pxUnit"]/text()')
+		l.add_xpath('taxe_css','//div[@class="pdt-secu"]/text()')
 		l.add_xpath('tva','//div[@class="tva"]/span/text()')
-		l.add_xpath('image','//div[@class="imgContainer"]/a/@href')
+		l.add_xpath('image','//div[@class="imgContainer"]/img[@id="produitIMG"]/@src')
 		l.load_item()
 		l.item.insert()
 		l.item.show()
