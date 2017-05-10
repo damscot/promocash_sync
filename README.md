@@ -3,6 +3,9 @@ install
 -------
 
 $ sudo apt-get install libssl-dev libffi-dev python-pip virtualenv
+$ sudo apt-get install xvfb
+# update firefox to 53.0
+$ sudo apt-get install firefox
 $ virtualenv --system-site-packages ~/promocash
 
 add db_login.txt and promologin.txt in ~/promocash with proper credentials
@@ -17,6 +20,7 @@ $ pip install mysql-connector==2.1.4
 $ pip install pyopenssl --upgrade
 $ pip install scrapy
 $ pip install selenium
+$ pip install pyvirtualdisplay
 
 
 Use:
