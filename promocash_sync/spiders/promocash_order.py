@@ -23,9 +23,11 @@ from scrapy.utils.response import open_in_browser
 from scrapy.utils.project import get_project_settings
 from scrapy.loader import ItemLoader
 from scrapy.loader.processors import Join, MapCompose, TakeFirst
+
 from w3lib.html import remove_tags
 
 from selenium import webdriver
+from selenium.webdriver.common.keys import Keys
 from selenium.webdriver.common.desired_capabilities import DesiredCapabilities
 from selenium.webdriver.common.by import By
 from selenium.webdriver.support.wait import WebDriverWait
@@ -92,16 +94,17 @@ cbarre_notfound = []
 
 #change to True for testing
 if (True):
-	cbarre_list = ["3560070756100","5410228230441"]
+	#order_list = ["3560070756100","5410228230441"]
+	order_list = [{'cbarre' : "3560070756100", 'qte' : "2" }, {'cbarre' : "5410228230441", 'qte' : "11"}]
 else:
-	cbarre_list = []
+	order_list = []
 	for row in cursor_Laurux:
-		cbarre_list.append(row.art_code)
+		order_list.append(row.art_code)
 
 print "*********************"
-print cbarre_list
+print order_list
 print "*********************"
-print len(cbarre_list)
+print len(order_list)
 print "*********************"
 #sys.exit(0)
 
@@ -205,10 +208,11 @@ class PromocashOrderArticleSpider(CrawlSpider):
 	allowed_domains = ['grenoble.promocash.com']
 	start_urls = ['https://grenoble.promocash.com/authentification.php']
 
-	rules = (
-	    Rule(LinkExtractor(allow=('https://grenoble.promocash.com/authentification.php')), callback='parse_start_url', follow=False),
-	    Rule(LinkExtractor(allow=('produitListe.php')), callback='parse_item', follow=True),
-	)
+	#rules = (
+	#	Rule(LinkExtractor(allow=('https://grenoble.promocash.com/robots\.txt')), callback='start_session', follow=False),
+	#	Rule(LinkExtractor(allow=('https://grenoble.promocash.com/authentification\.php', ), deny=('cmdEtape1\.php', )), callback='parse_start_url', follow=False),
+	#	Rule(LinkExtractor(allow=('produitListe\.php')), callback='parse_item', follow=True),
+	#)
 	
 	def __init__(self):
 		# Path for geckodriver
@@ -221,6 +225,10 @@ class PromocashOrderArticleSpider(CrawlSpider):
 		crawler.signals.connect(spider.spider_closed, signal=signals.spider_closed)
 		return spider
 	
+	def start_session(self, response):
+		self.logger.warning("Start Session")
+		return
+	
 	def parse_start_url(self, response):
 		self.logger.warning("Starting Connection with User : " + promo_user)
 		request = scrapy.FormRequest.from_response(response,formnumber=1,
@@ -228,6 +236,17 @@ class PromocashOrderArticleSpider(CrawlSpider):
 			clickdata={'name':'logClient'},
 			callback=self.after_login)
 		request.meta['dont_redirect'] = True
+		#login in selenium session too
+		self.driver.get(response.url)
+		WebDriverWait(self.driver, 10)
+		banner = self.driver.find_element_by_id("cookie-banner-close")
+		banner.click()
+		username = self.driver.find_element_by_name("CLI_NUMERO")
+		password = self.driver.find_element_by_name("CLI_PASSWORD")
+		username.send_keys(promo_user)
+		password.send_keys(promo_pass)
+		login_btn = self.driver.find_element_by_name("logClient")
+		login_btn.click()
 		yield request
 	
 	#def after_user(self, response):
@@ -256,38 +275,43 @@ class PromocashOrderArticleSpider(CrawlSpider):
 	def start_page(self, response):
 		time.sleep(1)
 		self.logger.warning("Start Page")
-		for cbarre in cbarre_list:
-			request = scrapy.FormRequest.from_response(response,
-				formdata={'searchString': cbarre},
+		
+		for order in order_list:
+			request = scrapy.FormRequest.from_response(response,formnumber=1,
+				formdata={'searchString': order['cbarre']},
 				callback=self.order_item)
-			request.meta['cbarre'] = cbarre
+			request.meta['cbarre'] = order['cbarre']
+			request.meta['qte'] = order['qte']
 			yield request
 	
 	def order_item(self, response):
-		self.logger.warning("Parse Item " + response.meta['cbarre'])
+		self.logger.warning("Order Item " + response.meta['cbarre'] + " => Qte " + response.meta['qte'])
 		response.meta['driver'] = self.driver
-		open_in_browser(response)
+		time.sleep(0.5)
+		#open_in_browser(response)
 		try:
-			url_detail = response.xpath('//div[@class="pdt-libelle"]/a/@href').extract()
+			url_detail = response.xpath('//div[@class="listeProduit"]//div[@class="pdt-libelle"]/a/@href').extract()
 			url_detail = u'https://grenoble.promocash.com' + url_detail[0]
 		except:
 			cbarre_notfound.append(response.meta['cbarre'])
 			return None
+		
 		self.driver.get(url_detail)
-		f = codecs.open("out_" + response.meta['cbarre'] + ".html", 'w', "utf-8")
-		#print self.driver.page_source
-		f.write(self.driver.page_source)
-		f.flush()
-		f.close()
+		#f = codecs.open("out_" + response.meta['cbarre'] + ".html", 'w', "utf-8")
+		#f.write(self.driver.page_source)
+		#f.flush()
+		#f.close()
+		qte = WebDriverWait(self.driver, 10).until(
+			EC.visibility_of_element_located((By.ID, 'PRO_QUANTITE'))
+		)
+		qte.clear()
+		qte.send_keys(response.meta['qte'])
 		order_btn = WebDriverWait(self.driver, 10).until(
 			EC.visibility_of_element_located((By.XPATH, '//input[@id="SUBM"]'))
 		)
 		order_btn.click()
+		return None
 		
-	def order_article(self, response):
-		time.sleep(0.5)
-		open_in_browser(response)
-
 	def spider_opened(self, spider):
 		self.logger.info('Promocash spider opened: %s', spider.name)
 		if HEADLESS:

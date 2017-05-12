@@ -52,7 +52,7 @@ cursor.execute("""
 CREATE TABLE IF NOT EXISTS Articles (
 	cbarre varchar(20) NOT NULL,
 	code varchar(10) NOT NULL,
-	name varchar(100) DEFAULT NULL,
+	name varchar(200) DEFAULT NULL,
 	prixht varchar(8) DEFAULT NULL,
 	prixht_promo varchar(8) DEFAULT NULL,
 	prixht_promo_act varchar(8) DEFAULT NULL,
@@ -76,7 +76,7 @@ cursor_Laurux.execute("""SELECT * FROM Laurux01.Fiches_Art where
 cbarre_notfound = []
 
 #change to True for testing
-if (False):
+if (True):
 	cbarre_list = ["3560070756100","5410228230441"]
 else:
 	cbarre_list = []
@@ -243,10 +243,10 @@ class PromocashArticleSpider(CrawlSpider):
 	allowed_domains = ['grenoble.promocash.com']
 	start_urls = ['https://grenoble.promocash.com/authentification.php']
 
-	rules = (
-	    Rule(LinkExtractor(allow=('https://grenoble.promocash.com/authentification.php')), callback='parse_start_url', follow=False),
-	    Rule(LinkExtractor(allow=('produitListe.php')), callback='parse_item', follow=True),
-	)
+	#rules = (
+	#    Rule(LinkExtractor(allow=('authentification\.php',),deny=("cmdEtape1\.php",)), callback='parse_start_url', follow=False),
+	#    Rule(LinkExtractor(allow=('produitListe\.php')), callback='parse_item', follow=False),
+	#)
 	
 	@classmethod
 	def from_crawler(cls, crawler, *args, **kwargs):
@@ -256,6 +256,7 @@ class PromocashArticleSpider(CrawlSpider):
 	
 	def parse_start_url(self, response):
 		self.logger.warning("Starting Connection with User : " + promo_user)
+		open_in_browser(response)
 		request = scrapy.FormRequest.from_response(response,formnumber=1,
 			formdata={'CLI_NUMERO': promo_user,'CLI_PASSWORD': promo_pass},
 			clickdata={'name':'logClient'},
@@ -283,14 +284,15 @@ class PromocashArticleSpider(CrawlSpider):
 			return
 		else:
 			self.logger.warning("logging Successfull")
-			return Request(url="https://grenoble.promocash.com/",
+			return Request(url="https://grenoble.promocash.com",
 				callback=self.start_page)
 	
 	def start_page(self, response):
 		time.sleep(1)
+		open_in_browser(response)
 		self.logger.warning("Start Page")
 		for cbarre in cbarre_list:
-			request = scrapy.FormRequest.from_response(response,
+			request = scrapy.FormRequest.from_response(response,formnumber=1,
 				formdata={'searchString': cbarre},
 				callback=self.parse_item)
 			request.meta['cbarre'] = cbarre
@@ -301,7 +303,7 @@ class PromocashArticleSpider(CrawlSpider):
 		time.sleep(0.5)
 		#open_in_browser(response)
 		try:
-			url_detail = response.xpath('//div[@class="pdt-libelle"]/a/@href').extract()
+			url_detail = response.xpath('//div[@class="listeProduit"]//div[@class="pdt-libelle"]/a/@href').extract()
 			url_detail = u'https://grenoble.promocash.com' + url_detail[0]
 		except:
 			cbarre_notfound.append(response.meta['cbarre'])
@@ -309,7 +311,7 @@ class PromocashArticleSpider(CrawlSpider):
 		#print "url_detail: " + url_detail
 		request = scrapy.Request(url_detail, callback=self.parse_detail)
 		request.meta['cbarre'] = response.meta['cbarre']
-		request.meta['name'] = response.xpath('//div[@class="pdt-libelle"]/a/text()').extract()
+		request.meta['name'] = response.xpath('//div[@class="listeProduit"]//div[@class="pdt-libelle"]/a/text()').extract()
 		return request
 		
 	def parse_detail(self, response):
@@ -317,18 +319,18 @@ class PromocashArticleSpider(CrawlSpider):
 		#open_in_browser(response)
 		l = ItemLoader(item=Article(), response=response)
 		l.add_value('cbarre', response.meta['cbarre'])
-		l.add_xpath('code','//div[@class="pdt-ifls"]/text()')
+		l.add_xpath('code','//div[@id="produit"]//div[@class="pdt-ifls"]/text()')
 		l.add_value('name', response.meta['name'])
-		l.add_xpath('cond','//div[@class="pdt-cond"]/text()')
-		l.add_xpath('unite_achat','//div[@class="pdt-cond"]/text()')
-		l.add_xpath('marque','//div[@class="pdt-marque"]/text()')
-		l.add_xpath('prixht','//div[@class="prix"]/span/span[@*]/text()')
-		l.add_xpath('prixht_promo','//div[@class="blocPrix"]/del/text()')
-		l.add_xpath('prixht_promo_act','//div[@class="blocPrix"]/ins/span/span[@*]/text()')
-		l.add_xpath('prixht_cond','//div[@class="pdt-pxUnit"]/text()')
-		l.add_xpath('taxe_css','//div[@class="pdt-secu"]/text()')
-		l.add_xpath('tva','//div[@class="tva"]/span/text()')
-		l.add_xpath('image','//div[@class="imgContainer"]/img[@id="produitIMG"]/@src')
+		l.add_xpath('cond','//div[@id="produit"]//div[@class="pdt-cond"]/text()')
+		l.add_xpath('unite_achat','//div[@id="produit"]//div[@class="pdt-cond"]/text()')
+		l.add_xpath('marque','//div[@id="produit"]//div[@class="pdt-marque"]/text()')
+		l.add_xpath('prixht','//div[@id="colonneDroiteProduit"]//div[@class="prix"]/span/span[@*]/text()')
+		l.add_xpath('prixht_promo','//div[@id="colonneDroiteProduit"]//div[@class="blocPrix"]/del/text()')
+		l.add_xpath('prixht_promo_act','//div[@id="colonneDroiteProduit"]//div[@class="blocPrix"]/ins/span/span[@*]/text()')
+		l.add_xpath('prixht_cond','//div[@id="colonneDroiteProduit"]//div[@class="pdt-pxUnit"]/text()')
+		l.add_xpath('taxe_css','//div[@id="colonneDroiteProduit"]//div[@class="pdt-secu"]/text()')
+		l.add_xpath('tva','//div[@id="colonneDroiteProduit"]//div[@class="tva"]/span/text()')
+		l.add_xpath('image','//div[@id="produit"]//div[@class="imgContainer"]/img[@id="produitIMG"]/@src')
 		l.load_item()
 		l.item.insert()
 		l.item.show()
