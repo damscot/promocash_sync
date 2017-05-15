@@ -19,77 +19,6 @@ import re
 import mysql.connector
 from scrapy import signals
 
-
-with open(os.environ['HOME'] + '/promocash/promologin.txt') as f:
-  credentials = [x.strip().split(':') for x in f.readlines()]
-  
-for username,password in credentials:
-	promo_user = username
-	promo_pass = password
-
-with open(os.environ['HOME'] + '/promocash/dblogin.txt') as f:
-  credentials = [x.strip().split(':') for x in f.readlines()]
-  
-for username,password in credentials:
-	db_user = username
-	db_pass = password
-
-try:
-	conn = mysql.connector.connect(host="localhost",user=db_user,password=db_pass, database="Promocash")
-	conn_Laurux = mysql.connector.connect(host="localhost",user=db_user,password=db_pass, database="Laurux01")
-	cursor = conn.cursor()
-	cursor_Laurux = conn_Laurux.cursor(named_tuple=True)
-	
-except mysql.connector.Error as err:
-	if err.errno == errorcode.ER_ACCESS_DENIED_ERROR:
-		print "Something is wrong with your user name or password"
-	elif err.errno == errorcode.ER_BAD_DB_ERROR:
-		print "Database does not exist"
-	else:
-		print err
-
-cursor.execute("""
-CREATE TABLE IF NOT EXISTS Articles (
-	cbarre varchar(20) NOT NULL,
-	code varchar(10) NOT NULL,
-	name varchar(200) DEFAULT NULL,
-	prixht varchar(8) DEFAULT NULL,
-	prixht_promo varchar(8) DEFAULT NULL,
-	prixht_promo_act varchar(8) DEFAULT NULL,
-	prixht_unite varchar(8) DEFAULT NULL,
-	prixht_cond varchar(8) DEFAULT NULL,
-	taxe_css varchar(8) DEFAULT NULL,
-	tva varchar(5) DEFAULT NULL,
-	marque varchar(20) DEFAULT NULL,
-	unite_achat varchar(5) DEFAULT NULL,
-	cond varchar(5) DEFAULT NULL,
-	image varchar(200) DEFAULT NULL,
-	last_update varchar(20) DEFAULT NULL,
-	PRIMARY KEY(cbarre)
-);
-""")
-
-cursor_Laurux.execute("""SELECT * FROM Laurux01.Fiches_Art where
-			art_four = 401002 and art_code = art_cbarre and art_stocke = 1 and art_suspendu = 0;
-			""")
-
-cbarre_notfound = []
-
-#change to True for testing
-if (True):
-	cbarre_list = ["3560070756100","5410228230441"]
-else:
-	cbarre_list = []
-	for row in cursor_Laurux:
-		cbarre_list.append(row.art_code)
-
-print "*********************"
-print cbarre_list
-print "*********************"
-print len(cbarre_list)
-print "*********************"
-#sys.exit(0)
-
 def filter_float(value):
 	value = re.sub(',','.',value)
 	try:
@@ -189,7 +118,7 @@ class Article(scrapy.Item):
 		print dict(self)
 		print "***********************"
 	
-	def insert(self):
+	def insert(self, spider):
 		elem=dict(self)
 		if (not ('taxe_css' in elem)):
 			 elem['taxe_css'] = "0"
@@ -214,7 +143,7 @@ class Article(scrapy.Item):
 			elem['prixht_unite'] = "{:.2f}".format(float(elem['prixht']) / float(elem['unite_achat']))
 		today = datetime.datetime.today()
 		elem['last_update'] = today.strftime("%Y-%m-%d %H:%M:%S")
-		cursor.execute("""INSERT INTO Articles (cbarre, code, name, prixht, prixht_promo, prixht_promo_act, prixht_unite, prixht_cond, taxe_css, tva, marque, unite_achat, cond, image, last_update) 
+		spider.cursor.execute("""INSERT INTO Articles (cbarre, code, name, prixht, prixht_promo, prixht_promo_act, prixht_unite, prixht_cond, taxe_css, tva, marque, unite_achat, cond, image, last_update) 
 			VALUES(%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
 			ON DUPLICATE KEY UPDATE
 			code = VALUES(code),
@@ -236,29 +165,98 @@ class Article(scrapy.Item):
 			elem['prixht_promo'], elem['prixht_promo_act'], elem['prixht_unite'], elem['prixht_cond'],
 			elem['taxe_css'], elem['tva'], elem['marque'], elem['unite_achat'], elem['cond'],
 			elem['image'], elem['last_update']))
-		conn.commit()
+		spider.conn.commit()
 
-class PromocashArticleSpider(CrawlSpider):
+class PromocashSyncArticleSpider(CrawlSpider):
 	name = 'promocash_article'
 	allowed_domains = ['grenoble.promocash.com']
 	start_urls = ['https://grenoble.promocash.com/authentification.php']
 
-	#rules = (
-	#    Rule(LinkExtractor(allow=('authentification\.php',),deny=("cmdEtape1\.php",)), callback='parse_start_url', follow=False),
-	#    Rule(LinkExtractor(allow=('produitListe\.php')), callback='parse_item', follow=False),
-	#)
+	def __init__(self, *args, **kwargs):
+		super(PromocashSyncArticleSpider, self).__init__(*args, **kwargs)
+		
+		with open(os.environ['HOME'] + '/promocash/promologin.txt') as f:
+			credentials = [x.strip().split(':') for x in f.readlines()]
+  
+		for username,password in credentials:
+			self.promo_user = username
+			self.promo_pass = password
+		
+		with open(os.environ['HOME'] + '/promocash/dblogin.txt') as f:
+		  credentials = [x.strip().split(':') for x in f.readlines()]
+		  
+		for username,password in credentials:
+			db_user = username
+			db_pass = password
+		
+		try:
+			self.conn = mysql.connector.connect(host="localhost",user=db_user,password=db_pass, database="Promocash")
+			self.conn_Laurux = mysql.connector.connect(host="localhost",user=db_user,password=db_pass, database="Laurux01")
+			self.cursor = self.conn.cursor()
+			self.cursor_Laurux = self.conn_Laurux.cursor(named_tuple=True)
+			
+		except mysql.connector.Error as err:
+			if err.errno == errorcode.ER_ACCESS_DENIED_ERROR:
+				print "Something is wrong with your user name or password"
+			elif err.errno == errorcode.ER_BAD_DB_ERROR:
+				print "Database does not exist"
+			else:
+				print err
+				
+				
+		self.cursor.execute("""
+		CREATE TABLE IF NOT EXISTS Articles (
+			cbarre varchar(20) NOT NULL,
+			code varchar(10) NOT NULL,
+			name varchar(200) DEFAULT NULL,
+			prixht varchar(8) DEFAULT NULL,
+			prixht_promo varchar(8) DEFAULT NULL,
+			prixht_promo_act varchar(8) DEFAULT NULL,
+			prixht_unite varchar(8) DEFAULT NULL,
+			prixht_cond varchar(8) DEFAULT NULL,
+			taxe_css varchar(8) DEFAULT NULL,
+			tva varchar(5) DEFAULT NULL,
+			marque varchar(20) DEFAULT NULL,
+			unite_achat varchar(5) DEFAULT NULL,
+			cond varchar(5) DEFAULT NULL,
+			image varchar(200) DEFAULT NULL,
+			last_update varchar(20) DEFAULT NULL,
+			PRIMARY KEY(cbarre)
+		);
+		""")
+		
+		self.cursor_Laurux.execute("""SELECT * FROM Laurux01.Fiches_Art where
+					art_four = 401002 and art_code = art_cbarre and art_stocke = 1 and art_suspendu = 0;
+					""")
+		
+		self.cbarre_notfound = []
+		
+		#change to True for testing
+		if (False):
+			self.cbarre_list = ["3560070756100","5410228230441"]
+		else:
+			self.cbarre_list = []
+			for row in self.cursor_Laurux:
+				self.cbarre_list.append(row.art_code)
+		
+		print "*********************"
+		print self.cbarre_list
+		print "*********************"
+		print len(self.cbarre_list)
+		print "*********************"
 	
 	@classmethod
 	def from_crawler(cls, crawler, *args, **kwargs):
-		spider = super(PromocashArticleSpider, cls).from_crawler(crawler, *args, **kwargs)
+		spider = super(PromocashSyncArticleSpider, cls).from_crawler(crawler, *args, **kwargs)
+		crawler.signals.connect(spider.spider_opened, signal=signals.spider_opened)
 		crawler.signals.connect(spider.spider_closed, signal=signals.spider_closed)
 		return spider
 	
 	def parse_start_url(self, response):
-		self.logger.warning("Starting Connection with User : " + promo_user)
-		open_in_browser(response)
+		self.logger.warning("Starting Connection with User : " + self.promo_user)
+		#open_in_browser(response)
 		request = scrapy.FormRequest.from_response(response,formnumber=1,
-			formdata={'CLI_NUMERO': promo_user,'CLI_PASSWORD': promo_pass},
+			formdata={'CLI_NUMERO': self.promo_user,'CLI_PASSWORD': self.promo_pass},
 			clickdata={'name':'logClient'},
 			callback=self.after_login)
 		request.meta['dont_redirect'] = True
@@ -289,9 +287,9 @@ class PromocashArticleSpider(CrawlSpider):
 	
 	def start_page(self, response):
 		time.sleep(1)
-		open_in_browser(response)
+		#open_in_browser(response)
 		self.logger.warning("Start Page")
-		for cbarre in cbarre_list:
+		for cbarre in self.cbarre_list:
 			request = scrapy.FormRequest.from_response(response,formnumber=1,
 				formdata={'searchString': cbarre},
 				callback=self.parse_item)
@@ -306,7 +304,7 @@ class PromocashArticleSpider(CrawlSpider):
 			url_detail = response.xpath('//div[@class="listeProduit"]//div[@class="pdt-libelle"]/a/@href').extract()
 			url_detail = u'https://grenoble.promocash.com' + url_detail[0]
 		except:
-			cbarre_notfound.append(response.meta['cbarre'])
+			self.cbarre_notfound.append(response.meta['cbarre'])
 			return None
 		#print "url_detail: " + url_detail
 		request = scrapy.Request(url_detail, callback=self.parse_detail)
@@ -332,19 +330,22 @@ class PromocashArticleSpider(CrawlSpider):
 		l.add_xpath('tva','//div[@id="colonneDroiteProduit"]//div[@class="tva"]/span/text()')
 		l.add_xpath('image','//div[@id="produit"]//div[@class="imgContainer"]/img[@id="produitIMG"]/@src')
 		l.load_item()
-		l.item.insert()
+		l.item.insert(spider=self)
 		l.item.show()
+		
+	def spider_opened(self, spider):
+		self.logger.info('Promocash spider opened: %s', spider.name)
 		
 	def spider_closed(self, spider):
 		self.logger.info('Promocash spider closed: %s', spider.name)
 		print "////// NOT FOUND //////"
-		print cbarre_notfound
+		print self.cbarre_notfound
 		print "///////////////////////"
 		try:
-			cursor.close()
-			conn.close()
-			cursor_Laurux.close()
-			conn_Laurux.close()
+			self.cursor.close()
+			self.conn.close()
+			self.cursor_Laurux.close()
+			self.conn_Laurux.close()
 		except:
 			print "failure during close connection"
 
