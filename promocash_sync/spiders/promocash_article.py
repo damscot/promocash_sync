@@ -129,7 +129,11 @@ class Article(scrapy.Item):
 		if (not ('marque' in elem)):
 			 elem['marque'] = ""
 		if (not ('prixht' in elem)):
-			 elem['prixht'] = elem['prixht_promo']
+			if (not ('prixht_promo' in elem)):
+				elem['prixht'] = re.sub(',','.',elem['prixht_promo_act'])
+				elem['prixht_promo'] = elem['prixht_promo_act']
+			else:
+				elem['prixht'] = re.sub(',','.',elem['prixht_promo'])
 		else:
 			if (not ('prixht_promo' in elem)):
 				elem['prixht_promo'] = elem['prixht']
@@ -217,8 +221,8 @@ class PromocashSyncArticleSpider(CrawlSpider):
 			taxe_css varchar(8) DEFAULT NULL,
 			tva varchar(5) DEFAULT NULL,
 			marque varchar(20) DEFAULT NULL,
-			unite_achat varchar(5) DEFAULT NULL,
-			cond varchar(5) DEFAULT NULL,
+			unite_achat varchar(8) DEFAULT NULL,
+			cond varchar(8) DEFAULT NULL,
 			image varchar(200) DEFAULT NULL,
 			last_update varchar(20) DEFAULT NULL,
 			PRIMARY KEY(cbarre)
@@ -233,7 +237,7 @@ class PromocashSyncArticleSpider(CrawlSpider):
 		
 		#change to True for testing
 		if (False):
-			self.cbarre_list = ["3560070756100","5410228230441"]
+			self.cbarre_list = ["8002270014901", "3245398908935","3414280190066"]
 		else:
 			self.cbarre_list = []
 			for row in self.cursor_Laurux:
@@ -323,8 +327,8 @@ class PromocashSyncArticleSpider(CrawlSpider):
 		l.add_xpath('unite_achat','//div[@id="produit"]//div[@class="pdt-cond"]/text()')
 		l.add_xpath('marque','//div[@id="produit"]//div[@class="pdt-marque"]/text()')
 		l.add_xpath('prixht','//div[@id="colonneDroiteProduit"]//div[@class="prix"]/span/span[@*]/text()')
-		l.add_xpath('prixht_promo','//div[@id="colonneDroiteProduit"]//div[@class="blocPrix"]/del/text()')
-		l.add_xpath('prixht_promo_act','//div[@id="colonneDroiteProduit"]//div[@class="blocPrix"]/ins/span/span[@*]/text()')
+		l.add_xpath('prixht_promo','//div[@id="colonneDroiteProduit"]//div[contains(concat(" ", @class, " "), "blocPrix")]/del/text()')
+		l.add_xpath('prixht_promo_act','//div[@id="colonneDroiteProduit"]//div[contains(concat(" ", @class, " "), "blocPrix")]/ins/span/span[@*]/text()')
 		l.add_xpath('prixht_cond','//div[@id="colonneDroiteProduit"]//div[@class="pdt-pxUnit"]/text()')
 		l.add_xpath('taxe_css','//div[@id="colonneDroiteProduit"]//div[@class="pdt-secu"]/text()')
 		l.add_xpath('tva','//div[@id="colonneDroiteProduit"]//div[@class="tva"]/span/text()')

@@ -75,11 +75,19 @@ class Article(scrapy.Item):
 		input_processor=MapCompose(remove_tags, strip_string, unicode_to_ascii, strip_non_numeric),
 		output_processor=Join(''),
 	)
+	prixht_promo = scrapy.Field(
+		input_processor=MapCompose(remove_tags, strip_string, unicode_to_ascii, strip_non_numeric),
+		output_processor=Join(''),
+	)
 	prixht_cond = scrapy.Field(
 		input_processor=MapCompose(remove_tags, strip_string, unicode_to_ascii, strip_non_numeric, filter_float_str),
 		output_processor=Join(''),
 	)
-	
+	prixht_cond_promo = scrapy.Field(
+		input_processor=MapCompose(remove_tags, strip_string, unicode_to_ascii, strip_non_numeric, filter_float_str),
+		output_processor=Join(''),
+	)
+		
 	def show(self):
 		print "***********************"
 		print dict(self)
@@ -87,6 +95,11 @@ class Article(scrapy.Item):
 	
 	def insert(self, spider):
 		elem=dict(self)
+		
+		if (not ('prixht' in elem)):
+			 elem['prixht'] = elem['prixht_promo']
+			 elem['prixht_cond'] = elem['prixht_cond_promo']
+		
 		art = None
 		spider.cursor_Laurux.execute("""SELECT * FROM Fiches_Art where art_four = %s and art_cfour = %s ;""", ('401002', elem['code'],))
 		#only one match supported
@@ -129,7 +142,7 @@ class Article(scrapy.Item):
 			coda = VALUES(coda) ;
 			""",(art.art_code, art.art_design, spider.laurux_commande, '401002',
 			re.sub('\.',',',str(elem['qte'])), re.sub('\.',',',str(elem['prixht_cond'])), 0, re.sub('\.',',',str(elem['prixht_cond'])),
-			spider.ddate, art.art_frais, re.sub('\.',',',str(art.art_prvt)), spider.nligne, art.art_code))
+			spider.ddate, re.sub('\.',',',str(art.art_frais)), re.sub('\.',',',str(art.art_prvt)), spider.nligne, art.art_code))
 		spider.conn_Laurux.commit()
 		spider.nligne = spider.nligne + 1;
 
@@ -222,7 +235,8 @@ class PromocashCmdCompleteSpider(CrawlSpider):
 		time.sleep(2)
 		#open_in_browser(response)
 		headercom = response.xpath('//div[@class="entetePage"]/p[@class="etat"]/text()').extract()
-		if ((len(headercom) == 4) and (unidecode(headercom[3]).strip() == ("Terminee"))):
+		if (((len(headercom) == 4) and (unidecode(headercom[3]).strip() == ("Terminee"))) or
+			((len(headercom) == 4) and (unidecode(headercom[3]).strip() == ("En cours de livraison")))):
 			print "**** Commande " + self.commande + " trouvé."
 		else:
 			print "!!!! Commande " + self.commande + " NON trouvé."
@@ -264,7 +278,9 @@ class PromocashCmdCompleteSpider(CrawlSpider):
 			l.add_xpath('code','.//span[@class="pdt-ifls"]/text()')
 			l.add_xpath('qte', './/input[@class="inputQuantite"]/@value')
 			l.add_xpath('prixht','.//div[@class="prix"]/span/span[@*]/text()')
+			l.add_xpath('prixht_promo','.//div[@class="prix promo"]/span/span[@*]/text()')
 			l.add_xpath('prixht_cond','.//div[@class="pdt-pxUnit"]/text()')
+			l.add_xpath('prixht_cond_promo','.//div[@class="pdt-pxUnit"]/span[@class="rouge"]/text()')
 			l.load_item()
 			l.item.insert(spider=self)
 			#l.item.show()
