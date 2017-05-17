@@ -33,4 +33,7 @@ then goto promocash_sync clone then
 
 $ scrapy runspider promocash_sync/spiders/promocash_article.py
 
+*__create a commande on Laurux based on article from promocash site completed commande__*  
 
+Parametre a fournir ===  "4 dernier num de la commande sur le site ex: 1780"
+$ scrapy runspider promocash_sync/spiders/promocash_commande_complete.py --nolog -a commande=1780
