@@ -87,6 +87,10 @@ class Article(scrapy.Item):
 		input_processor=MapCompose(remove_tags, strip_string, unicode_to_ascii, strip_non_numeric, filter_float_str),
 		output_processor=Join(''),
 	)
+	unite_achat = scrapy.Field(
+		input_processor=MapCompose(remove_tags, strip_string, unicode_to_ascii, check_unite_achat, strip_non_numeric, filter_float_str),
+		output_processor=TakeFirst(),
+	)
 		
 	def show(self):
 		print "***********************"
@@ -99,6 +103,9 @@ class Article(scrapy.Item):
 		if (not ('prixht' in elem)):
 			 elem['prixht'] = elem['prixht_promo']
 			 elem['prixht_cond'] = elem['prixht_cond_promo']
+			 
+		if (not ('unite_achat' in elem)):
+			 elem['unite_achat'] = "1"
 		
 		art = None
 		spider.cursor_Laurux.execute("""SELECT * FROM Fiches_Art where art_four = %s and art_cfour = %s ;""", ('401002', elem['code'],))
@@ -106,7 +113,7 @@ class Article(scrapy.Item):
 		for row in spider.cursor_Laurux:
 			art = row
 		if (art == None):
-			print "!!!! Unable to find %s: %s (qte: %s)" % (elem['code'], elem['name'], elem['qte'])
+			print "!!!! Unable to find %s: %s (qte: %s ; ua: %s)" % (elem['code'], elem['name'], elem['qte'], elem['unite_achat'])
 			spider.article_notfound.append(elem['code'])
 			if (float(elem['qte']) != 0.0):
 				spider.montant_notfound = spider.montant_notfound + float(elem['prixht'])
@@ -115,12 +122,12 @@ class Article(scrapy.Item):
 			print "!!!! Quantity null for %s(%s): %s" % (art.art_code, elem['code'],  elem['name'])
 			return
 		else:
-			print "**** Quantity %s for %s(%s): %s" % (elem['qte'], art.art_code, elem['code'], elem['name'])
+			print "**** Quantity %s (ua:%s) for %s(%s): %s" % (elem['qte'], elem['unite_achat'], art.art_code, elem['code'], elem['name'])
 			spider.montant_found = spider.montant_found + float(elem['prixht'])
 			if (art.art_com != None):
-				art_com = art.art_com + float(elem['qte'])
+				art_com = art.art_com + (float(elem['qte']) * float(elem['unite_achat']))
 			else:
-				art_com = float(elem['qte'])
+				art_com = (float(elem['qte']) * float(elem['unite_achat']))
 				
 			spider.cursor_Laurux.execute("""UPDATE Fiches_Art SET art_com = %s where art_four = %s and art_cfour = %s ;""", (art_com, '401002', elem['code']))
 
@@ -141,7 +148,8 @@ class Article(scrapy.Item):
 			nligne = VALUES(nligne),
 			coda = VALUES(coda) ;
 			""",(art.art_code, art.art_design, spider.laurux_commande, '401002',
-			re.sub('\.',',',str(elem['qte'])), re.sub('\.',',',str(elem['prixht_cond'])), 0, re.sub('\.',',',str(elem['prixht_cond'])),
+			re.sub('\.',',',str((float(elem['qte']) * float(elem['unite_achat'])))),
+			re.sub('\.',',',str(elem['prixht_cond'])), 0, re.sub('\.',',',str(elem['prixht_cond'])),
 			spider.ddate, re.sub('\.',',',str(art.art_frais)), re.sub('\.',',',str(art.art_prvt)), spider.nligne, art.art_code))
 		spider.conn_Laurux.commit()
 		spider.nligne = spider.nligne + 1;
@@ -281,6 +289,7 @@ class PromocashCmdCompleteSpider(CrawlSpider):
 			l.add_xpath('prixht_promo','.//div[@class="prix promo"]/span/span[@*]/text()')
 			l.add_xpath('prixht_cond','.//div[@class="pdt-pxUnit"]/text()')
 			l.add_xpath('prixht_cond_promo','.//div[@class="pdt-pxUnit"]/span[@class="rouge"]/text()')
+			l.add_xpath('unite_achat','.//div[@class="pdt-cond"]/text()')
 			l.load_item()
 			l.item.insert(spider=self)
 			#l.item.show()
