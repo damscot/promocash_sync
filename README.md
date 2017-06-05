@@ -3,7 +3,7 @@ install
 -------
 
 $ sudo apt-get install libssl-dev libffi-dev python-pip virtualenv
-$ sudo apt-get install xvfb
+$ sudo apt-get install xvfb zenity
 # update firefox to 53.0
 $ sudo apt-get install firefox
 $ virtualenv --system-site-packages ~/promocash
@@ -16,6 +16,7 @@ then
 
 $ pip install protobuf
 $ pip install unidecode
+$ pip install lxml
 $ pip install mysql-connector==2.1.4
 $ pip install pyopenssl --upgrade
 $ pip install scrapy

@@ -189,13 +189,14 @@ class PromocashSyncArticleSpider(CrawlSpider):
 		with open(os.environ['HOME'] + '/promocash/dblogin.txt') as f:
 		  credentials = [x.strip().split(':') for x in f.readlines()]
 		  
-		for username,password in credentials:
+		for host,username,password in credentials:
+			db_host = host
 			db_user = username
 			db_pass = password
 		
 		try:
-			self.conn = mysql.connector.connect(host="localhost",user=db_user,password=db_pass, database="Promocash")
-			self.conn_Laurux = mysql.connector.connect(host="localhost",user=db_user,password=db_pass, database="Laurux01")
+			self.conn = mysql.connector.connect(host=db_host,user=db_user,password=db_pass, database="Promocash")
+			self.conn_Laurux = mysql.connector.connect(host=db_host,user=db_user,password=db_pass, database="Laurux01")
 			self.cursor = self.conn.cursor()
 			self.cursor_Laurux = self.conn_Laurux.cursor(named_tuple=True)
 			

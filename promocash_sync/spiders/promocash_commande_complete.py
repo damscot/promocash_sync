@@ -99,14 +99,10 @@ class Article(scrapy.Item):
 	
 	def insert(self, spider):
 		elem=dict(self)
-		
-		if (not ('prixht' in elem)):
-			 elem['prixht'] = elem['prixht_promo']
-			 elem['prixht_cond'] = elem['prixht_cond_promo']
-			 
+
 		if (not ('unite_achat' in elem)):
-			 elem['unite_achat'] = "1"
-		
+			elem['unite_achat'] = "1"
+
 		art = None
 		spider.cursor_Laurux.execute("""SELECT * FROM Fiches_Art where art_four = %s and art_cfour = %s ;""", ('401002', elem['code'],))
 		#only one match supported
@@ -122,6 +118,10 @@ class Article(scrapy.Item):
 			print "!!!! Quantity null for %s(%s): %s" % (art.art_code, elem['code'],  elem['name'])
 			return
 		else:
+			if (not ('prixht' in elem)):
+				 elem['prixht'] = elem['prixht_promo']
+				 elem['prixht_cond'] = elem['prixht_cond_promo']
+			 	
 			print "**** Quantity %s (ua:%s) for %s(%s): %s" % (elem['qte'], elem['unite_achat'], art.art_code, elem['code'], elem['name'])
 			spider.montant_found = spider.montant_found + float(elem['prixht'])
 			if (art.art_com != None):
@@ -178,13 +178,14 @@ class PromocashCmdCompleteSpider(CrawlSpider):
 		with open(os.environ['HOME'] + '/promocash/dblogin.txt') as f:
 		  credentials = [x.strip().split(':') for x in f.readlines()]
 		  
-		for username,password in credentials:
+		for host,username,password in credentials:
+			db_host = host
 			db_user = username
 			db_pass = password
 		
 		try:
-			self.conn = mysql.connector.connect(host="localhost",user=db_user,password=db_pass, database="Promocash")
-			self.conn_Laurux = mysql.connector.connect(host="localhost",user=db_user,password=db_pass, database="Laurux01")
+			self.conn = mysql.connector.connect(host=db_host,user=db_user,password=db_pass, database="Promocash")
+			self.conn_Laurux = mysql.connector.connect(host=db_host,user=db_user,password=db_pass, database="Laurux01")
 			self.cursor = self.conn.cursor()
 			self.cursor_Laurux = self.conn_Laurux.cursor(named_tuple=True)
 			
