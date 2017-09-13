@@ -112,18 +112,20 @@ class Article(scrapy.Item):
 			print "!!!! Unable to find %s: %s (qte: %s ; ua: %s)" % (elem['code'], elem['name'], elem['qte'], elem['unite_achat'])
 			spider.article_notfound.append(elem['code'])
 			if (float(elem['qte']) != 0.0):
-				spider.montant_notfound = spider.montant_notfound + float(elem['prixht'])
+				spider.montant_notfound = spider.montant_notfound + float(re.sub(',','.',str(elem['prixht'])))
 			return
 		elif (float(elem['qte']) == 0.0):
 			print "!!!! Quantity null for %s(%s): %s" % (art.art_code, elem['code'],  elem['name'])
+			spider.article_withnullqte.append(elem['code'])
 			return
 		else:
+			spider.article_found.append(elem['code'])
 			if (not ('prixht' in elem)):
-				 elem['prixht'] = elem['prixht_promo']
-				 elem['prixht_cond'] = elem['prixht_cond_promo']
+				 elem['prixht'] = float(re.sub(',','.',elem['prixht_promo']))
+				 elem['prixht_cond'] =  float(re.sub(',','.',elem['prixht_cond_promo']))
 			 	
 			print "**** Quantity %s (ua:%s) for %s(%s): %s" % (elem['qte'], elem['unite_achat'], art.art_code, elem['code'], elem['name'])
-			spider.montant_found = spider.montant_found + float(elem['prixht'])
+			spider.montant_found = spider.montant_found + float(re.sub(',','.',str(elem['prixht'])))
 			if (art.art_com != None):
 				art_com = art.art_com + (float(elem['qte']) * float(elem['unite_achat']))
 			else:
@@ -150,7 +152,7 @@ class Article(scrapy.Item):
 			""",(art.art_code, art.art_design, spider.laurux_commande, '401002',
 			re.sub('\.',',',str((float(elem['qte']) * float(elem['unite_achat'])))),
 			re.sub('\.',',',str(elem['prixht_cond'])), 0, re.sub('\.',',',str(elem['prixht_cond'])),
-			spider.ddate, re.sub('\.',',',str(art.art_frais)), re.sub('\.',',',str(art.art_prvt)), spider.nligne, art.art_code))
+			spider.ddate, re.sub('\.',',',str(art.art_frais)), re.sub('\.',',',str(art.art_prvt)), str(int(spider.nligne)).zfill(4), art.art_code))
 		spider.conn_Laurux.commit()
 		spider.nligne = spider.nligne + 1;
 
@@ -198,6 +200,8 @@ class PromocashCmdCompleteSpider(CrawlSpider):
 				print err
 				
 		self.article_notfound = []
+		self.article_found = []
+		self.article_withnullqte = []
 	
 	@classmethod
 	def from_crawler(cls, crawler, *args, **kwargs):
@@ -307,6 +311,11 @@ class PromocashCmdCompleteSpider(CrawlSpider):
 		self.logger.info('Promocash spider closed: %s', spider.name)
 		print "////// %s ARTICLE NOT FOUND //////" % len(self.article_notfound)
 		print self.article_notfound
+		print "////// %s ARTICLE WITH NULL //////" % len(self.article_withnullqte)
+		print self.article_withnullqte
+		print "////// %s ARTICLE FOUND //////" % len(self.article_found)
+		print self.article_found
+		print "------------------------------"
 		print "Montant HT not found: %s" % self.montant_notfound
 		print "Montant HT found: %s" % self.montant_found
 		print "///////////////////////"

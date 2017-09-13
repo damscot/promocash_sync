@@ -20,7 +20,9 @@ import mysql.connector
 from scrapy import signals
 
 def filter_float(value):
+	#print "VALUE1=" + value
 	value = re.sub(',','.',value)
+	#print "VALUE2=" + value
 	try:
 		f = float(value)
 		return f
@@ -135,6 +137,7 @@ class Article(scrapy.Item):
 			else:
 				elem['prixht'] = re.sub(',','.',elem['prixht_promo'])
 		else:
+			elem['prixht'] = re.sub(',','.',elem['prixht'])
 			if (not ('prixht_promo' in elem)):
 				elem['prixht_promo'] = elem['prixht']
 			if (not ('prixht_promo_act' in elem)):
@@ -238,7 +241,7 @@ class PromocashSyncArticleSpider(CrawlSpider):
 		
 		#change to True for testing
 		if (False):
-			self.cbarre_list = ["8002270014901", "3245398908935","3414280190066"]
+			self.cbarre_list = ["3336770000566"]
 		else:
 			self.cbarre_list = []
 			for row in self.cursor_Laurux:
