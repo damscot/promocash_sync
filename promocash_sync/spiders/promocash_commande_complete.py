@@ -267,7 +267,12 @@ class PromocashCmdCompleteSpider(CrawlSpider):
 		self.nligne = 0
 		self.montant_notfound = 0.0
 		self.montant_found = 0.0
-		montant = response.xpath('//span[@class="td-montant"]/text()').extract()
+		montant = response.xpath('//div[@class="row big"]/span[@class="td-montant"]/text()').extract()
+		
+		print commentaire
+		print "Montant: " + ", ".join([str(unidecode(m)) for m in montant])
+		print "Montant HT: " + filter_float_str(strip_non_numeric(montant[0].strip()))
+		print "Montant TTC: " + filter_float_str(strip_non_numeric(montant[1].strip()))
 		
 		self.cursor_Laurux.execute("""INSERT INTO Fiches_Entcom (four, numcom, ddate, montant, reliquat, montantttc, anomalie, commentaire) 
 			VALUES(%s, %s, %s, %s, %s, %s, %s, %s)
@@ -281,7 +286,7 @@ class PromocashCmdCompleteSpider(CrawlSpider):
 			anomalie = VALUES(anomalie),
 			commentaire = VALUES(commentaire) ;
 			""",('401002', self.laurux_commande, self.ddate, filter_float_str(strip_non_numeric(montant[0].strip())),
-			0, re.sub('\.',',',filter_float_str(strip_non_numeric(montant[3].strip()))), 0, commentaire))
+			0, re.sub('\.',',',filter_float_str(strip_non_numeric(montant[1].strip()))), 0, commentaire))
 		self.conn_Laurux.commit()
 		
 		divs = response.xpath('//div[@class="table-info"]')

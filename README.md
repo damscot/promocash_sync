@@ -8,7 +8,7 @@ $ sudo apt-get install xvfb zenity
 $ sudo apt-get install firefox
 $ virtualenv --system-site-packages ~/promocash
 
-add db_login.txt and promologin.txt in ~/promocash with proper credentials
+add dblogin.txt and promologin.txt in ~/promocash with proper credentials
 
 $ . ~/promocash/bin/activate
 

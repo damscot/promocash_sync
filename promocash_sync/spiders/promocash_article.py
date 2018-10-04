@@ -15,6 +15,7 @@ from scrapy.utils.response import open_in_browser
 from scrapy.loader import ItemLoader
 from scrapy.loader.processors import Join, MapCompose, TakeFirst
 from w3lib.html import remove_tags
+from mysql.connector import errorcode
 import re
 import mysql.connector
 from scrapy import signals
@@ -241,7 +242,7 @@ class PromocashSyncArticleSpider(CrawlSpider):
 		
 		#change to True for testing
 		if (False):
-			self.cbarre_list = ["3336770000566"]
+			self.cbarre_list = ["3336770000566","3153575541014"]
 		else:
 			self.cbarre_list = []
 			for row in self.cursor_Laurux:
@@ -309,7 +310,7 @@ class PromocashSyncArticleSpider(CrawlSpider):
 		time.sleep(0.5)
 		#open_in_browser(response)
 		try:
-			url_detail = response.xpath('//div[@class="listeProduit"]//div[@class="pdt-libelle"]/a/@href').extract()
+			url_detail = response.xpath('//div[@class="listeEnLigne"]//div[@class="pdt-libelle"]/a/@href').extract()
 			url_detail = u'https://grenoble.promocash.com' + url_detail[0]
 		except:
 			self.cbarre_notfound.append(response.meta['cbarre'])
