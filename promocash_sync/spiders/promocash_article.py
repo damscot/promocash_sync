@@ -234,8 +234,8 @@ class PromocashSyncArticleSpider(CrawlSpider):
 		);
 		""")
 		
-		self.cursor_Laurux.execute("""SELECT * FROM Laurux01.Fiches_Art where
-					art_four = 401002 and art_code = art_cbarre and art_stocke = 1 and art_suspendu = 0;
+		self.cursor_Laurux.execute("""SELECT * FROM Laurux01.Fiches_CdBarre Left join Laurux01.Fiches_Art on Fiches_CdBarre.codep = Fiches_Art.art_code where
+					art_four = 401002 and art_stocke = 1 and art_suspendu = 0;
 					""")
 		
 		self.cbarre_notfound = []
@@ -246,7 +246,7 @@ class PromocashSyncArticleSpider(CrawlSpider):
 		else:
 			self.cbarre_list = []
 			for row in self.cursor_Laurux:
-				self.cbarre_list.append(row.art_code)
+				self.cbarre_list.append(row.codeb)
 		
 		print "*********************"
 		print self.cbarre_list
